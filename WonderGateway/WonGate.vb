@@ -16,7 +16,7 @@ Public Class WonGate
 
     Public Const DIALSTAT_OK As Byte = 0
 
-    Public Const FIRST_SOCK As Integer = &H30
+    Public Const FIRST_SOCK As Integer = 0   ' socket ids 0..; Rainbow Islands rejects ids >= 9
     Public Const WONDERGATE_VERSION As Byte = &H10
 
     Public Cfg As WonConfig
@@ -194,16 +194,20 @@ Public Class WonGate
         End Try
     End Function
 
-    ' Receive up to len bytes. Returns count, 0 on EOF, -1 on bad socket.
+    ' Receive up to len bytes. Returns count, or -1 when the connection is closed
+    ' (EOF or reset). The dispatcher maps -1 to a 0xFF length byte, which games like
+    ' Rainbow Islands require to detect end-of-response (a plain 0 makes them spin).
     Public Function SockRecv(s As Byte, buf As Byte(), len As Integer) As Integer
         Dim sock = GetSock(s)
         If sock Is Nothing Then Return -1
         If len <= 0 Then Return 0
         Try
-            Return sock.Receive(buf, 0, len, SocketFlags.None)  ' 0 == orderly close
+            Dim n As Integer = sock.Receive(buf, 0, len, SocketFlags.None)
+            If n <= 0 Then Return -1   ' orderly close (EOF)
+            Return n
         Catch ex As Exception
-            WLog.Dbg($"# recv error: {ex.Message}")
-            Return 0
+            WLog.Dbg($"# recv closed: {ex.Message}")
+            Return -1   ' reset/error
         End Try
     End Function
 
@@ -241,16 +245,26 @@ Public Class WonGate
         Return sock
     End Function
 
-    ' Config-driven server redirection.
+    ' Config-driven server redirection. An entry keyed "*.suffix" matches any
+    ' host ending in ".suffix" (and the bare "suffix"), so e.g. "*.channel.or.jp"
+    ' catches every game server without listing each subdomain.
     Private Function ApplyHostHack(name As String) As String
         If Cfg IsNot Nothing Then
             For Each h In Cfg.HostHacks
-                If String.Equals(h.InName, name, StringComparison.OrdinalIgnoreCase) Then
-                    Return h.OutName
-                End If
+                If HostMatches(h.InName, name) Then Return h.OutName
             Next
         End If
         Return name
+    End Function
+
+    Private Shared Function HostMatches(pattern As String, name As String) As Boolean
+        If pattern Is Nothing OrElse name Is Nothing Then Return False
+        If pattern.StartsWith("*.") Then
+            Dim suffix As String = pattern.Substring(1) ' ".channel.or.jp"
+            Return name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase) OrElse
+                   String.Equals(name, pattern.Substring(2), StringComparison.OrdinalIgnoreCase)
+        End If
+        Return String.Equals(pattern, name, StringComparison.OrdinalIgnoreCase)
     End Function
 
     Private Sub ApplySockHack(ip As Byte(), ByRef port As Integer)

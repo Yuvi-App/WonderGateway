@@ -138,8 +138,14 @@ Public Module Dispatcher
     End Function
 
     Private Function Cmd_SockDel(gate As WonGate, cmd As WonGateCmd, repl As WonGateCmd) As WonGateCmd
-        repl.Size = 1
-        repl.SetByte(0, gate.SockDel(cmd.GetByte(0)))
+        ' RI's sockdel wrapper (b5d9) reads a 6-byte reply and requires the
+        ' result byte (param[1]) to be 0 for success. Use the same (status,
+        ' result) shape as sockcon/socksend; a 1-byte reply makes RI time out,
+        ' retry 3x, and abort the whole request with error 999.
+        Dim ok As Byte = gate.SockDel(cmd.GetByte(0))
+        repl.Size = 2
+        repl.SetByte(0, 0)
+        repl.SetByte(1, If(ok <> 0, CByte(0), CByte(&HFF)))
         Return repl
     End Function
 
