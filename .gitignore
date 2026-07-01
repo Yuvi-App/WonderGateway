@@ -396,3 +396,6 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+/WonderGateway/TestRoms
+/WonderGateway/ExampleSoftware
+/WonderGateway/dist/
