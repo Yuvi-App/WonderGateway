@@ -194,17 +194,28 @@ Public Class WonGate
         End Try
     End Function
 
-    ' Receive up to len bytes. Returns count, or -1 when the connection is closed
-    ' (EOF or reset). The dispatcher maps -1 to a 0xFF length byte, which games like
-    ' Rainbow Islands require to detect end-of-response (a plain 0 makes them spin).
-    Public Function SockRecv(s As Byte, buf As Byte(), len As Integer) As Integer
+    ' Receive up to len bytes. Returns the count, or -1 on close (EOF/reset); the
+    ' dispatcher maps -1 to a 0xFF length byte so games detect end-of-response.
+    ' lineMode (cmd 0x0D) returns one line, up to and including '\n'; cmd 0x0F is
+    ' block mode. Raku Jongg reads HTTP headers line-by-line and needs this.
+    Public Function SockRecv(s As Byte, buf As Byte(), len As Integer, Optional lineMode As Boolean = False) As Integer
         Dim sock = GetSock(s)
         If sock Is Nothing Then Return -1
         If len <= 0 Then Return 0
         Try
-            Dim n As Integer = sock.Receive(buf, 0, len, SocketFlags.None)
-            If n <= 0 Then Return -1   ' orderly close (EOF)
-            Return n
+            If lineMode Then
+                Dim n As Integer = 0
+                While n < len
+                    Dim one As Integer = sock.Receive(buf, n, 1, SocketFlags.None)
+                    If one <= 0 Then Return If(n > 0, n, -1) ' EOF: partial line, or close
+                    n += 1
+                    If buf(n - 1) = 10 Then Exit While       ' '\n' ends the line
+                End While
+                Return n
+            End If
+            Dim cnt As Integer = sock.Receive(buf, 0, len, SocketFlags.None)
+            If cnt <= 0 Then Return -1   ' orderly close (EOF)
+            Return cnt
         Catch ex As Exception
             WLog.Dbg($"# recv closed: {ex.Message}")
             Return -1   ' reset/error
@@ -245,9 +256,8 @@ Public Class WonGate
         Return sock
     End Function
 
-    ' Config-driven server redirection. An entry keyed "*.suffix" matches any
-    ' host ending in ".suffix" (and the bare "suffix"), so e.g. "*.channel.or.jp"
-    ' catches every game server without listing each subdomain.
+    ' Config-driven host redirect; a "*.suffix" entry matches any host ending in
+    ' ".suffix" (and the bare "suffix").
     Private Function ApplyHostHack(name As String) As String
         If Cfg IsNot Nothing Then
             For Each h In Cfg.HostHacks

@@ -30,9 +30,17 @@ Public Module Dispatcher
         End Select
     End Function
 
+    ' Cold power-on: the real adapter replies a raw 0x55 sync burst (from capture);
+    ' a later power-on in the same session returns the version word.
     Private Function Cmd_PowerOn(gate As WonGate, cmd As WonGateCmd, repl As WonGateCmd) As WonGateCmd
+        Dim wasCold As Boolean = (gate.Status = WonGate.MWGSTAT_OFF)
+        Dim ver As UShort = gate.PowerOn()
+        If wasCold Then
+            repl.Raw = New Byte() {&H55, &H55, &H55, &H55, &H55}
+            Return repl
+        End If
         repl.Size = 2
-        repl.SetWord(0, gate.PowerOn())
+        repl.SetWord(0, ver)
         Return repl
     End Function
 
@@ -43,8 +51,9 @@ Public Module Dispatcher
             WLog.Dbg("Power-off command with bad confirmation!")
             Return Nothing
         End If
-        repl.Size = 1
-        repl.SetByte(0, gate.PowerOff())
+        ' Reply is the bare [0F][00][01][FF], no param byte.
+        gate.PowerOff()
+        repl.Size = 0
         Return repl
     End Function
 
@@ -75,9 +84,11 @@ Public Module Dispatcher
     End Function
 
     Private Function Cmd_Hangup(gate As WonGate, cmd As WonGateCmd, repl As WonGateCmd) As WonGateCmd
+        ' Reply is the dial-status frame (cmd 0x0B), not a 0x0A echo: Raku Jongg
+        ' requires cmd 0x0B and length >= 8 here, and Pocket Fighter doesn't check it.
+        gate.Hangup()
         repl.Cmd = &HB
-        repl.Size = 1
-        repl.SetByte(0, gate.Hangup())
+        repl.Size = 4          ' 4 zero params -> 8-byte frame
         Return repl
     End Function
 
@@ -138,10 +149,8 @@ Public Module Dispatcher
     End Function
 
     Private Function Cmd_SockDel(gate As WonGate, cmd As WonGateCmd, repl As WonGateCmd) As WonGateCmd
-        ' RI's sockdel wrapper (b5d9) reads a 6-byte reply and requires the
-        ' result byte (param[1]) to be 0 for success. Use the same (status,
-        ' result) shape as sockcon/socksend; a 1-byte reply makes RI time out,
-        ' retry 3x, and abort the whole request with error 999.
+        ' (status, result) shape, result 0 = OK. A 1-byte reply makes Rainbow
+        ' Islands retry and abort with error 999.
         Dim ok As Byte = gate.SockDel(cmd.GetByte(0))
         repl.Size = 2
         repl.SetByte(0, 0)
@@ -162,8 +171,10 @@ Public Module Dispatcher
     Private Function Cmd_SockRecv(gate As WonGate, cmd As WonGateCmd, repl As WonGateCmd) As WonGateCmd
         Dim s As Byte = cmd.GetByte(0)
         Dim len As Integer = cmd.GetByte(1)
+        ' cmd 0x0D = line-oriented recv (one line per call), 0x0F = block recv.
+        Dim lineMode As Boolean = (cmd.Cmd = &HD)
         Dim tmp(255) As Byte
-        Dim ret As Integer = gate.SockRecv(s, tmp, len)
+        Dim ret As Integer = gate.SockRecv(s, tmp, len, lineMode)
         Dim n As Integer = If(ret > 0, ret, 0)
         repl.Size = 2 + n
         repl.SetByte(0, 0)

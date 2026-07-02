@@ -8,6 +8,10 @@ Public Class WonGateCmd
     Public Cmd As Byte
     Public Param As Byte() = Array.Empty(Of Byte)()
 
+    ' When set, Send() writes these bytes verbatim instead of a framed reply
+    ' (used for the cold power-on's raw 0x55 sync burst).
+    Public Raw As Byte() = Nothing
+
     ' Number of parameter bytes (excludes the cmd byte).
     Public Property Size As Integer
         Get
@@ -47,7 +51,12 @@ Public Class WonGateCmd
         Dim cmd As New WonGateCmd()
         Dim b As Integer
 
+        ' Skip 0x00 sync/idle bytes between frames (games prefix a 0x00 burst;
+        ' no real command has type 0x00).
         b = t.ReadByte() : If b < 0 Then Return Nothing
+        While b = 0
+            b = t.ReadByte() : If b < 0 Then Return Nothing
+        End While
         cmd.Type = CByte(b)
         b = t.ReadByte() : If b < 0 Then Return Nothing
         cmd.Zero = CByte(b)
@@ -82,6 +91,12 @@ Public Class WonGateCmd
 
     ' Writes this reply; wire size field is (param count + 1) for the cmd byte.
     Public Sub Send(t As IByteTransport)
+        If Raw IsNot Nothing AndAlso Raw.Length > 0 Then
+            WLog.Dbg($"=> Send RAW ({Raw.Length}) (" & String.Join(",", Raw.Select(Function(x) x.ToString("X2"))) & ")")
+            t.WriteBytes(Raw)
+            t.Flush()
+            Return
+        End If
         WLog.Dbg($"=> Send Type:Cmd={Type:X2}:{Cmd:X2} Size={Size:X2} {HexParams()}")
         t.WriteByte(Type)
         t.WriteByte(Zero)

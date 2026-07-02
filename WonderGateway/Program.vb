@@ -110,9 +110,13 @@ Module Program
         Dim gate As New WonGate(New WonConfig())
         Dim ok As Boolean = True
 
-        ok = Check(gate, "poweron", New Byte() {&H1, &H0, &H1, &H2}, New Byte() {&H1, &H0, &H3, &H2, &H31, &H30}) And ok
+        ' Expected replies verified against a real-adapter capture (Hardware-Captures/).
+        ok = Check(gate, "poweron_cold", New Byte() {&H1, &H0, &H1, &H2}, New Byte() {&H55, &H55, &H55, &H55, &H55}) And ok
         ok = Check(gate, "get_status", New Byte() {&H2, &H0, &H2, &H1, &H3}, New Byte() {&H2, &H0, &H2, &H2, &H2}) And ok
         ok = Check(gate, "check_pdc", New Byte() {&H1, &H0, &H1, &H0}, New Byte() {&H1, &H0, &H3, &H0, &H0, &HF}) And ok
+        ok = Check(gate, "hangup", New Byte() {&H1, &H0, &H2, &HA, &H1}, New Byte() {&H1, &H0, &H5, &HB, &H0, &H0, &H0, &H0}) And ok
+        ok = Check(gate, "poweroff", New Byte() {&HF, &H0, &H5, &HFF, &H55, &HAA, &H55, &HAA}, New Byte() {&HF, &H0, &H1, &HFF}) And ok
+        ok = Check(gate, "sync_burst_skipped", New Byte() {&H0, &H0, &H0, &H1, &H0, &H1, &H2}, New Byte() {&H55, &H55, &H55, &H55, &H55}) And ok
         ok = Check(gate, "poweroff_badconf", New Byte() {&HF, &H0, &H1, &HFF}, New Byte() {}) And ok
 
         WLog.Info(If(ok, "SELFTEST: ALL PASS", "SELFTEST: FAILURES"))
