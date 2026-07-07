@@ -399,3 +399,4 @@ FodyWeavers.xsd
 /WonderGateway/TestRoms
 /WonderGateway/ExampleSoftware
 /WonderGateway/dist/
+/server.py
