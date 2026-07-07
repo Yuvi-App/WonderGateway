@@ -2,7 +2,6 @@ Imports System.Net
 Imports System.Net.Sockets
 Imports System.Linq
 
-' The emulated adapter: gateway state + the real work (TCP sockets, DNS, status).
 Public Class WonGate
     ' Status constants
     Public Const MWGSTAT_OFF As Byte = 0
@@ -16,7 +15,7 @@ Public Class WonGate
 
     Public Const DIALSTAT_OK As Byte = 0
 
-    Public Const FIRST_SOCK As Integer = 0   ' socket ids 0..; Rainbow Islands rejects ids >= 9
+    Public Const FIRST_SOCK As Integer = 0
     Public Const WONDERGATE_VERSION As Byte = &H10
 
     Public Cfg As WonConfig
@@ -25,7 +24,11 @@ Public Class WonGate
     Public Dns1 As UInteger
     Public Dns2 As UInteger
     Public PdcReception As Byte = 15
-    Public PdcStatus As Byte = PDCSTAT_NOPDC
+    ' Default to OK (phone service present): we always simulate a connected phone.
+    ' Games that PowerOn first would set this in PowerOn() anyway, but some titles
+    ' (e.g. Buffers Evolution) call CheckPdc BEFORE PowerOn and abort with "error 3"
+    ' (= PDCSTAT_NOPDC) if they read NOPDC here.
+    Public PdcStatus As Byte = PDCSTAT_OK
     Public PppUser As String
     Public PppPass As String
     Public PhoneDialed As String
@@ -43,7 +46,7 @@ Public Class WonGate
         Dns1 = 0
         Dns2 = 0
         PdcReception = CByte(If(Cfg IsNot Nothing, Cfg.Reception, 15))
-        PdcStatus = PDCSTAT_NOPDC
+        PdcStatus = PDCSTAT_OK   ' always "service present"
         PppUser = If(Cfg IsNot Nothing, Cfg.PppUser, Nothing)
         PppPass = If(Cfg IsNot Nothing, Cfg.PppPass, Nothing)
         PhoneDialed = Nothing

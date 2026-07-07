@@ -30,15 +30,10 @@ Public Module Dispatcher
         End Select
     End Function
 
-    ' Cold power-on: the real adapter replies a raw 0x55 sync burst (from capture);
-    ' a later power-on in the same session returns the version word.
+    ' Power-on reply = the 2-byte version word, framed as [01][00][03][02][lo][hi]
+    ' (ver 0x10 -> "10" = 31 30).
     Private Function Cmd_PowerOn(gate As WonGate, cmd As WonGateCmd, repl As WonGateCmd) As WonGateCmd
-        Dim wasCold As Boolean = (gate.Status = WonGate.MWGSTAT_OFF)
         Dim ver As UShort = gate.PowerOn()
-        If wasCold Then
-            repl.Raw = New Byte() {&H55, &H55, &H55, &H55, &H55}
-            Return repl
-        End If
         repl.Size = 2
         repl.SetWord(0, ver)
         Return repl
