@@ -13,6 +13,8 @@ Wonderswan WonderGate software emulation
 - Sennou Millennium
 - Another Heaven - Memory of those Days
 - Pocket no Naka no Doraemon
-- 
+- Star Hearts
+- Ring Infinity
+- Digimon 02 - D1 Tamers
 ## In progress Test Servers
 - Dark Eyes
