@@ -43,6 +43,7 @@ Having roughly 1000+ old Keitai at my disposal I was able to watch the WonderGat
  keep at "gate", cosmetic only
 
 > hostname_hack
+
 Redirect domains to custome wonderswan servers, for example: *.mopera.ne.jp = 127.0.0.1
 
 # How-To
